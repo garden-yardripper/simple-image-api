@@ -1,0 +1,1 @@
+A simple image hosting API powered by FastAPI.
