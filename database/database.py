@@ -18,13 +18,25 @@ class Database:
     def __init__(self, pool: aiomysql.Pool) -> None:
         self.pool = pool
     
-    async def fetch(self, query, args = ()) -> list[dict]:
+    async def fetchall(self, query, args = ()) -> list[dict]:
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, args)
                 return await cur.fetchall()
             
-    async def execute(self, query, args = ()):
+    async def fetchmany(self, size: int, query, args = ()) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(query, args)
+                return await cur.fetchmany(size)
+            
+    async def fetchone(self, query, args = ()) -> dict | None:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                await cur.execute(query, args)
+                return await cur.fetchone()
+            
+    async def execute(self, query, args = ()) -> None:
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(query, args)
