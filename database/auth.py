@@ -5,21 +5,21 @@ from pydantic import BaseModel
 
 class UserApiKey(BaseModel):
     raw_key: str
-    key_id: str # 16 characters
+    key_id: bytes
     
     @property
     def full_key(self) -> str:
-        return self.key_id + self.raw_key
+        return self.key_id.decode() + self.raw_key
 
 class DatabaseApiKey(BaseModel):
     salted_key: bytes
     salt: bytes
-    key_id: str
+    key_id: bytes
 
 def create_api_key() -> UserApiKey:
     raw_key = secrets.token_urlsafe(32)
     key_id = secrets.token_urlsafe(12)
-    return UserApiKey(raw_key=raw_key, key_id=key_id)
+    return UserApiKey(raw_key=raw_key, key_id=key_id.encode())
 
 def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
     salt = secrets.token_bytes(16)
@@ -33,7 +33,7 @@ async def store_api_key(db: Database, key: DatabaseApiKey) -> None:
     """, (key.salted_key, key.key_id, key.salt))
     
 async def validate_key(db: Database, key: str) -> bool:
-    key_id = key[:16]
+    key_id = key[:16].encode()
     result = await db.fetchone("SELECT api_key, salt FROM auth WHERE key_id = %s", (key_id,))
     if not result:
         return False
