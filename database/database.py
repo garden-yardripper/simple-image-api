@@ -45,8 +45,10 @@ class Database:
     async def update_tables(self):
         # store API keys in binary instead of 64 character hex because it's more efficient
         await self.execute("""
-            CREATE TABLE IF NOT EXISTS api_keys (
+            CREATE TABLE IF NOT EXISTS auth (
                 api_key BINARY(32) PRIMARY KEY,
+                key_id CHAR(16) NOT NULL,
+                salt BINARY(16) NOT NULL,
                 created TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             );
         """)
