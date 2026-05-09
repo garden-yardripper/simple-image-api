@@ -1,12 +1,10 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from aiomysql import MySQLError
 import redis.asyncio as redis
 from redis.exceptions import RedisError
 from logs import setup_logging
 from config import settings
-from typing import cast
-from exceptions import RateLimitedError, ApiKeyMissingError
 import logging
 import database
 import os
@@ -27,9 +25,10 @@ async def lifespan(app: FastAPI):
         logger.exception("Database connection failed to be established.")
         raise
     db = database.Database(db_pool)
+    await db.update_tables()
     app.state.db = db
     
-    logger.info("Database connection pool established successfully.")
+    logger.info("Database connection pool established and tables updated successfully.")
     
     logger.info("Creating Redis connection pool...")
     try:
@@ -60,28 +59,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-async def check_rate_limit(api_key: str, rate: int | None = None, per: int | None = None):
-    """Raises `RateLimitedError` (`HTTPException`) if `api_key` is exceeding rate limits - 
-    setting `rate` or `per` overrides settings."""
-    r = cast(redis.Redis, app.state.r)
-    
-    key = f"rate_limit:{api_key}"
-    current = cast(int, r.incrby(key))
-    
-    if current == 1:
-        r.expire(key, per or settings.per_seconds)
-    
-    if current > (rate or settings.rate_limit):
-        retry_after = cast(float, r.pttl(key))
-        raise RateLimitedError(message="Rate limit exceeded", retry_after=retry_after)
-    
-@app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    api_key = request.headers.get("api-key")
-    
-    if not api_key:
-        raise ApiKeyMissingError
-    # TODO: also check if the API key is not in the database when it's ready
-    
-    await check_rate_limit(api_key)
-    return await call_next(request)
+# dependencies (provides better type checking)
+def get_db() -> database.Database:
+    return app.state.db
+
+def get_redis() -> redis.Redis:
+    return app.state.r

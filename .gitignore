@@ -3,4 +3,7 @@ __pycache__/
 .venv/
 images/
 .env
+.env.testing_credentials
 logs/
+requirements.txt
+test.py

@@ -41,3 +41,12 @@ class Database:
             async with conn.cursor() as cur:
                 await cur.execute(query, args)
                 await conn.commit()
+                
+    async def update_tables(self):
+        # store API keys in binary instead of 64 character hex because it's more efficient
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS api_keys (
+                api_key BINARY(32) PRIMARY KEY,
+                created TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            );
+        """)
