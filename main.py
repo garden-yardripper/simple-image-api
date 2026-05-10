@@ -15,6 +15,8 @@ import database
 import aiofiles
 import uuid
 import os
+from PIL import Image as PILImage
+import asyncio
 
 os.makedirs(settings.image_directory, exist_ok=True)
 
@@ -74,6 +76,18 @@ def get_db() -> database.Database:
 def get_redis() -> redis.Redis:
     return app.state.r
 
+async def is_valid_image(file: bytes) -> bool:
+    def _run():
+        try:
+            with PILImage.open(file) as img:
+                img.verify()
+            return True
+        except Exception:
+            return False
+    
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _run)
+
 @app.post("/images")
 async def create_image(
     request: Request,
@@ -104,16 +118,16 @@ async def create_image(
     extension = extension.lstrip(".").lower()
     mimetype, _ = mimetypes.guess_type(file.filename)
     
-    acceptable_extensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"]
+    acceptable_extensions = {"png", "jpg", "jpeg", "gif", "webp", "avif"}
     if extension not in acceptable_extensions:
-        raise HTTPException(400, {"message": "Image type unsupported."})
+        raise HTTPException(415, {"message": "Image type unsupported."})
 
     # validate file size is less than 10MiB
     max_size = 10 * 1024 ** 2 # 10MiB
     bytes_read = 0
     while True:
         if bytes_read > max_size:
-            raise HTTPException(400, {"message": "Image file size exceeds 10MB limit."})
+            raise HTTPException(413, {"message": "Image file size exceeds 10MB limit."})
         
         contents = await file.read(1024 ** 2)
         contents_len = len(contents)
@@ -122,12 +136,16 @@ async def create_image(
         if contents_len < 1024 ** 2:
             break # EOF reached
     
+    await file.seek(0)
+    file_bytes = await file.read()
+    if not await is_valid_image(file_bytes):
+        raise HTTPException(415, {"message": "Uploaded file is not a valid image or is malformed."})
+    
     image_id = str(uuid.uuid4())
     path = os.path.join(settings.image_directory, f"{image_id}.{extension}")
     
-    await file.seek(0)
     async with aiofiles.open(path, "wb") as f:
-        await f.write(await file.read())
+        await f.write(file_bytes)
     
     image = await images.store_image_metadata(
         db, image_id, user_key.key_id, str(request.base_url), extension,
