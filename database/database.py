@@ -51,4 +51,24 @@ class Database:
                 salt BINARY(16) NOT NULL,
                 created TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS images (
+                -- identification
+                image_id UUID PRIMARY KEY,
+                key_id CHAR(16),
+
+                -- file info
+                file_path VARCHAR(255),
+                file_name VARCHAR(100),
+                file_size MEDIUMINT,
+                mime_type VARCHAR(100),
+
+                -- metadata
+                title VARCHAR(255),
+                description TEXT,
+                public BOOLEAN,
+
+                -- timestamp
+                uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            );
         """)
