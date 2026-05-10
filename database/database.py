@@ -66,7 +66,7 @@ class Database:
                 -- metadata
                 title VARCHAR(255),
                 description TEXT,
-                public BOOLEAN,
+                private BOOLEAN,
 
                 -- timestamp
                 uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

@@ -1,15 +1,33 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from .database import Database
 from urllib.parse import urljoin
+from datetime import datetime
 
 class Image(BaseModel):
+    image_id: str
+    key_id: str
+    file_path: str
+    file_name: str | None
+    file_size: int | None
+    mime_type: str | None
+    title: str | None
+    description: str | None
+    private: bool
+    uploaded: datetime
+    
+    @classmethod
+    @field_validator("uploaded", mode="before")
+    def convert_timestamp_to_datetime(cls, value):
+        if isinstance(value, float) or isinstance(value, int):
+            return datetime.fromtimestamp(value)
+        return value
+
+class UploadedImage(BaseModel):
     image_id: str
     hosted_link: str
     mimetype: str | None
     title: str | None
     description: str | None
-
-class UploadedImage(Image):
     private: bool
 
 async def store_image_metadata(
@@ -31,9 +49,9 @@ async def store_image_metadata(
     await db.execute("""
         INSERT INTO images (
             image_id, key_id, file_path, file_name, 
-            file_size, mime_type, title, description, public
+            file_size, mime_type, title, description, private
         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""", 
-        (image_id, key_id, file_path, file_name, file_size, mime_type, title, description, not private)
+        (image_id, key_id, file_path, file_name, file_size, mime_type, title, description, private)
     )
     
     image = UploadedImage(
@@ -46,3 +64,9 @@ async def store_image_metadata(
     )
             
     return image
+
+async def get_image_data_from_id(db: Database, image_id: str) -> Image | None:
+    result = await db.fetchone("SELECT * FROM images WHERE image_id = %s", (image_id,))
+    if not result:
+        return None
+    return Image.model_validate(result)
