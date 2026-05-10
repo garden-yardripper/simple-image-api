@@ -1,12 +1,19 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Header, Request, UploadFile, Query
 from contextlib import asynccontextmanager
 from aiomysql import MySQLError
 import redis.asyncio as redis
 from redis.exceptions import RedisError
 from logs import setup_logging
 from config import settings
+from database import images, auth
+from database.auth import UserApiKey
+import ratelimit
+from responses import ApiKeyInvalidError, ApiKeyMissingError, RateLimitInfoResponse
+import mimetypes
 import logging
 import database
+import aiofiles
+import uuid
 import os
 
 os.makedirs(settings.image_directory, exist_ok=True)
@@ -38,6 +45,7 @@ async def lifespan(app: FastAPI):
             port=settings.redis.port
         )
         r = redis.Redis(connection_pool=redis_pool)
+        await r.ping() # type: ignore # "warm up" redis, otherwise the first command will be slow
     except RedisError:
         logger.exception("Redis connection failed to be established.")
         raise
@@ -65,3 +73,67 @@ def get_db() -> database.Database:
 
 def get_redis() -> redis.Redis:
     return app.state.r
+
+@app.post("/images")
+async def create_image(
+    request: Request,
+    file: UploadFile,
+    title: str = Query(default=None, min_length=1, max_length=255), 
+    description: str = Query(default=None, min_length=0, max_length=1000), 
+    private: bool = Query(default=False),
+    api_key: str = Header(default=None, alias="api-key"),
+    db: database.Database = Depends(get_db),
+    redis: redis.Redis = Depends(get_redis)
+):
+    if not api_key:
+        raise ApiKeyMissingError
+    
+    user_key = UserApiKey.from_full_key(api_key)
+    if not await auth.validate_key(db, user_key):
+        raise ApiKeyInvalidError
+    
+    remaining, expiration = await ratelimit.check_key_rate_limit(redis, user_key.key_id)
+    
+    if not file.filename:
+        raise HTTPException(400, {"message": "Uploaded image must have a filename."})
+    
+    filename, extension = os.path.splitext(file.filename)
+    if not extension:
+        raise HTTPException(400, {"message": "Uploaded file must have a valid extension."})
+    
+    extension = extension.lstrip(".").lower()
+    mimetype, _ = mimetypes.guess_type(file.filename)
+    
+    acceptable_extensions = ["png", "jpg", "jpeg", "gif", "webp", "avif"]
+    if extension not in acceptable_extensions:
+        raise HTTPException(400, {"message": "Image type unsupported."})
+
+    # validate file size is less than 10MiB
+    max_size = 10 * 1024 ** 2 # 10MiB
+    bytes_read = 0
+    while True:
+        if bytes_read > max_size:
+            raise HTTPException(400, {"message": "Image file size exceeds 10MB limit."})
+        
+        contents = await file.read(1024 ** 2)
+        contents_len = len(contents)
+        bytes_read += contents_len
+        
+        if contents_len < 1024 ** 2:
+            break # EOF reached
+    
+    image_id = str(uuid.uuid4())
+    path = os.path.join(settings.image_directory, f"{image_id}.{extension}")
+    
+    await file.seek(0)
+    async with aiofiles.open(path, "wb") as f:
+        await f.write(await file.read())
+    
+    image = await images.store_image_metadata(
+        db, image_id, user_key.key_id, str(request.base_url), extension,
+        path, filename, bytes_read, mimetype, title, description, private
+    )
+    
+    return RateLimitInfoResponse(
+        image.model_dump(), remaining, expiration
+    )
