@@ -2,6 +2,7 @@ import secrets
 import hashlib
 from database import Database
 from pydantic import BaseModel
+import hmac
 
 class UserApiKey(BaseModel):
     raw_key: str
@@ -10,6 +11,12 @@ class UserApiKey(BaseModel):
     @property
     def full_key(self) -> str:
         return self.key_id + self.raw_key
+    
+    @classmethod
+    def from_full_key(cls, full_key: str) -> "UserApiKey":
+        key_id = full_key[:16]
+        raw_key = full_key[16:]
+        return cls(key_id=key_id, raw_key=raw_key)
 
 class DatabaseApiKey(BaseModel):
     salted_key: bytes
@@ -32,15 +39,14 @@ async def store_api_key(db: Database, key: DatabaseApiKey) -> None:
         VALUES (%s, %s, %s)
     """, (key.salted_key, key.key_id, key.salt))
     
-async def validate_key(db: Database, key: str) -> bool:
-    key_id = key[:16]
-    result = await db.fetchone("SELECT api_key, salt FROM auth WHERE key_id = %s", (key_id,))
+async def validate_key(db: Database, key: str | UserApiKey) -> bool:
+    user_key = key if isinstance(key, UserApiKey) else UserApiKey.from_full_key(key)
+    result = await db.fetchone("SELECT api_key, salt FROM auth WHERE key_id = %s", (user_key.key_id,))
     if not result:
         return False
     
     salted_key = result["api_key"]
     salt = result["salt"]
-    raw_key = key[16:]
     
-    hashed_key = hashlib.sha256(salt + raw_key.encode()).digest()
-    return hashed_key == salted_key
+    hashed_key = hashlib.sha256(salt + user_key.raw_key.encode()).digest()
+    return hmac.compare_digest(hashed_key, salted_key)
