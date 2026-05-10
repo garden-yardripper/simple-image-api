@@ -14,14 +14,14 @@ async def _check_rate_limit(client: Redis, key: str, rate: int | None = None, pe
         raise RateLimitedError(message="Rate limit exceeded", retry_after=expiration)
     return settings.rate_limit - current, expiration
 
-async def check_key_rate_limit(client: Redis, api_key: str, rate: int | None = None, per: int | None = None):
-    """Raises `RateLimitedError` (`HTTPException`) if `api_key` is exceeding rate limits - 
-    setting `rate` or `per` overrides settings."""
-    key = f"key_rate_limit:{api_key}"
+async def check_key_rate_limit(client: Redis, key_id: str, rate: int | None = None, per: int | None = None):
+    """Raises `RateLimitedError` (`HTTPException`) if `key_id` is exceeding rate limits - 
+    setting `rate` or `per` overrides settings. Returns number of requests left and request expiration as a tuple."""
+    key = f"key_rate_limit:{key_id}"
     return await _check_rate_limit(client, key, rate, per)
     
 async def check_ip_rate_limit(client: Redis, ip: str, rate: int | None = None, per: int | None = None):
     """Raises `RateLimitedError` (`HTTPException`) if `ip` is exceeding rate limits - 
-    setting `rate` or `per` overrides settings."""
+    setting `rate` or `per` overrides settings. Returns number of requests left and request expiration as a tuple."""
     key = f"ip_rate_limit:{ip}"
     return await _check_rate_limit(client, key, rate, per)
