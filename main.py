@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image as PILImage
 from io import BytesIO
 import asyncio
+from dependencies import get_db, get_redis
 
 os.makedirs(settings.image_directory, exist_ok=True)
 
@@ -70,13 +71,6 @@ async def lifespan(app: FastAPI):
     logger.info("Redis connection pool closed successfully.")
 
 app = FastAPI(lifespan=lifespan)
-
-# dependencies (provides better type checking)
-def get_db() -> database.Database:
-    return app.state.db
-
-def get_redis() -> redis.Redis:
-    return app.state.r
 
 async def is_valid_image(file: bytes) -> bool:
     def _run():
