@@ -14,9 +14,10 @@ class Image(BaseModel):
     description: str | None
     private: bool
     uploaded: datetime
+    last_updated: datetime
     
     @classmethod
-    @field_validator("uploaded", mode="before")
+    @field_validator("uploaded", "last_updated", mode="before")
     def convert_timestamp_to_datetime(cls, value):
         if isinstance(value, float) or isinstance(value, int):
             return datetime.fromtimestamp(value)
