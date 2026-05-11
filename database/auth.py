@@ -33,13 +33,14 @@ def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
     hashed_key = hashlib.sha256(salt + key.raw_key.encode()).digest()
     return DatabaseApiKey(salted_key=hashed_key, salt=salt, key_id=key.key_id)
 
-async def store_api_key(db: Database, key: DatabaseApiKey) -> None:
+async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> None:
     await db.execute("""
-        INSERT INTO auth (api_key, key_id, salt)
-        VALUES (%s, %s, %s)
-    """, (key.salted_key, key.key_id, key.salt))
+        INSERT INTO auth (api_key, key_id, salt) VALUES (%s, %s, %s);
+        INSERT INTO users (username, key_id) VALUES (%s, %s);
+    """, (key.salted_key, key.key_id, key.salt, username, key.key_id))
     
 async def validate_key(db: Database, key: str | UserApiKey) -> bool:
+    """Validate that an API key exists in the database. Returns True if valid, else False."""
     user_key = key if isinstance(key, UserApiKey) else UserApiKey.from_full_key(key)
     result = await db.fetchone("SELECT api_key, salt FROM auth WHERE key_id = %s", (user_key.key_id,))
     if not result:

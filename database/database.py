@@ -47,11 +47,19 @@ class Database:
         await self.execute("""
             CREATE TABLE IF NOT EXISTS auth (
                 api_key BINARY(32) PRIMARY KEY,
-                key_id CHAR(16) NOT NULL,
+                key_id CHAR(16) NOT NULL UNIQUE,
                 salt BINARY(16) NOT NULL,
-                created TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            CREATE TABLE IF NOT EXISTS users (
+                username VARCHAR(20),
+                key_id CHAR(16) NOT NULL,
+                FOREIGN KEY (key_id) 
+                    REFERENCES auth(key_id) 
+                    ON DELETE CASCADE
+            );
+            
             CREATE TABLE IF NOT EXISTS images (
                 -- identification
                 image_id UUID PRIMARY KEY,
@@ -69,6 +77,7 @@ class Database:
                 private BOOLEAN,
 
                 -- timestamp
-                uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             );
         """)
