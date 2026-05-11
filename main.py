@@ -1,16 +1,13 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from aiomysql import MySQLError
 import redis.asyncio as redis
 from redis.exceptions import RedisError
 from logs import setup_logging
 from config import settings
-from database import images
 import logging
 import database
 import os
-from fastapi.responses import FileResponse, JSONResponse
-from dependencies import get_db
 
 os.makedirs(settings.image_directory, exist_ok=True)
 
@@ -62,16 +59,3 @@ async def lifespan(app: FastAPI):
     logger.info("Redis connection pool closed successfully.")
 
 app = FastAPI(lifespan=lifespan)
-    
-@app.get("/images/{filename}")
-async def get_image_id(filename: str, db: database.Database = Depends(get_db)):
-    image_id, extension = os.path.splitext(filename)
-    
-    image = await images.get_image_data_from_id(db, image_id)
-    if image is None:
-        raise HTTPException(404, {"message": "Image not found"})
-    
-    if extension:
-        return FileResponse(image.file_path, media_type=image.mime_type, filename=image.file_name)
-    
-    return JSONResponse(image.model_dump())

@@ -1,12 +1,15 @@
 from typing import Annotated
 import redis.asyncio as redis
-from fastapi import APIRouter, Depends, Header, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, Header, Query, Request, UploadFile, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
+from database import images
 import database
 import ratelimit
 from dependencies import get_db, get_redis
 from responses import RateLimitInfoResponse
 from services import image_service as service
 from services.auth_service import check_for_key
+import os
 
 router = APIRouter()
 
@@ -32,3 +35,16 @@ async def create_image(
     return RateLimitInfoResponse(
         image.model_dump(), remaining, expiration
     )
+    
+@router.get("/images/{filename}")
+async def get_image_id(filename: str, db: database.Database = Depends(get_db)):
+    image_id, extension = os.path.splitext(filename)
+    
+    image = await images.get_image_data_from_id(db, image_id)
+    if image is None:
+        raise HTTPException(404, {"message": "Image not found"})
+    
+    if extension:
+        return FileResponse(image.file_path, media_type=image.mime_type, filename=image.file_name)
+    
+    return JSONResponse(image.model_dump())
