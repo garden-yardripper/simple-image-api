@@ -15,7 +15,9 @@ import database
 import aiofiles
 import uuid
 import os
+from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image as PILImage
+from io import BytesIO
 import asyncio
 
 os.makedirs(settings.image_directory, exist_ok=True)
@@ -79,7 +81,7 @@ def get_redis() -> redis.Redis:
 async def is_valid_image(file: bytes) -> bool:
     def _run():
         try:
-            with PILImage.open(file) as img:
+            with PILImage.open(BytesIO(file)) as img:
                 img.verify()
             return True
         except Exception:
@@ -139,7 +141,7 @@ async def create_image(
     await file.seek(0)
     file_bytes = await file.read()
     if not await is_valid_image(file_bytes):
-        raise HTTPException(415, {"message": "Uploaded file is not a valid image or is malformed."})
+        raise HTTPException(400, {"message": "Uploaded file is not a valid image or is malformed."})
     
     image_id = str(uuid.uuid4())
     path = os.path.join(settings.image_directory, f"{image_id}.{extension}")
@@ -155,3 +157,16 @@ async def create_image(
     return RateLimitInfoResponse(
         image.model_dump(), remaining, expiration
     )
+    
+@app.get("/images/{filename}")
+async def get_image_id(filename: str, db: database.Database = Depends(get_db)):
+    image_id, extension = os.path.splitext(filename)
+    
+    image = await images.get_image_data_from_id(db, image_id)
+    if image is None:
+        raise HTTPException(404, {"message": "Image not found"})
+    
+    if extension:
+        return FileResponse(image.file_path, media_type=image.mime_type, filename=image.file_name)
+    
+    return JSONResponse(image.model_dump(exclude={"key_id", "file_path", "file_size"}))

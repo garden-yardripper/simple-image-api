@@ -77,7 +77,7 @@ class Database:
                 private BOOLEAN,
 
                 -- timestamp
-                uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                uploaded TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             );
         """)

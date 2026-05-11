@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, field_serializer
 from .database import Database
 from urllib.parse import urljoin
 from datetime import datetime
@@ -22,6 +22,10 @@ class Image(BaseModel):
         if isinstance(value, float) or isinstance(value, int):
             return datetime.fromtimestamp(value)
         return value
+    
+    @field_serializer("uploaded", "last_updated")
+    def serialize_datetime_to_timestamp(self, time: datetime) -> float:
+        return time.timestamp()
 
 class UploadedImage(BaseModel):
     image_id: str
