@@ -2,6 +2,7 @@ from pydantic import BaseModel, field_validator, field_serializer
 from .database import Database
 from urllib.parse import urljoin
 from datetime import datetime
+from typing import Any
 
 class Image(BaseModel):
     image_id: str
@@ -26,6 +27,11 @@ class Image(BaseModel):
     @field_serializer("uploaded", "last_updated")
     def serialize_datetime_to_timestamp(self, time: datetime) -> float:
         return time.timestamp()
+    
+    def model_dump(self, *, include=None, exclude=None, **kwargs) -> dict[str, Any]:
+        if exclude is None:
+            exclude = {"key_id", "file_path", "file_size"}
+        return super().model_dump(include=include, exclude=exclude, **kwargs)
 
 class UploadedImage(BaseModel):
     image_id: str

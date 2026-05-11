@@ -169,4 +169,4 @@ async def get_image_id(filename: str, db: database.Database = Depends(get_db)):
     if extension:
         return FileResponse(image.file_path, media_type=image.mime_type, filename=image.file_name)
     
-    return JSONResponse(image.model_dump(exclude={"key_id", "file_path", "file_size"}))
+    return JSONResponse(image.model_dump())
