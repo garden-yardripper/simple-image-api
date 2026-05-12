@@ -8,7 +8,7 @@ from dependencies import get_db, get_redis
 from responses import RateLimitInfoResponse
 from services import image_service as service
 from services.auth_service import check_for_key
-from services.ratelimit_service import check_key_rate_limit
+from services.ratelimit_service import check_key_and_rate_limit
 import os
 
 router = APIRouter()
@@ -21,11 +21,10 @@ async def create_image(
     description: Annotated[str, Query(default=None, min_length=0, max_length=1000)], 
     private: Annotated[bool, Query(default=False)],
     api_key: Annotated[str, Header(default=None, alias="api-key")],
-    db: database.Database = Depends(get_db),
-    redis: redis.Redis = Depends(get_redis)
+    db: Annotated[database.Database, Depends(get_db)],
+    redis: Annotated[redis.Redis, Depends(get_redis)]
 ):
-    user_key = await check_for_key(db, api_key)
-    ratelimit = await check_key_rate_limit(redis, user_key.key_id)
+    user_key, ratelimit = await check_key_and_rate_limit(db, redis, api_key)
     
     image = await service.validate_and_save_image(
         db, file, user_key, str(request.base_url), 
@@ -37,7 +36,13 @@ async def create_image(
     )
     
 @router.get("/images/{filename}")
-async def get_image_id(filename: str, db: database.Database = Depends(get_db)):
+async def get_image_id(
+    filename: str, 
+    db: Annotated[database.Database, Depends(get_db)],
+    redis: Annotated[redis.Redis, Depends(get_redis)],
+    api_key: Annotated[str, Header(default=None, alias="api-key")]
+):
+    user_key, ratelimit = await check_key_and_rate_limit(db, redis, api_key)
     image_id, extension = os.path.splitext(filename)
     
     image = await images.get_image_data_from_id(db, image_id)
