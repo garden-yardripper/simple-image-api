@@ -1,7 +1,16 @@
+from pydantic import BaseModel
 from redis.asyncio import Redis
 from config import settings
 from typing import cast
 from responses import RateLimitedError
+
+class RateLimit(BaseModel):
+    remaining: int
+    expiration: float
+    
+    @property
+    def ratelimited(self) -> bool:
+        return self.remaining == 0
 
 async def _check_rate_limit(client: Redis, key: str, rate: int | None = None, per: int | None = None):
     current = cast(int, await client.incrby(key))
@@ -12,7 +21,7 @@ async def _check_rate_limit(client: Redis, key: str, rate: int | None = None, pe
     
     if current > (rate or settings.rate_limit):
         raise RateLimitedError(message="Rate limit exceeded", retry_after=expiration)
-    return settings.rate_limit - current, expiration
+    return RateLimit(remaining=settings.rate_limit - current, expiration=expiration)
 
 async def check_key_rate_limit(client: Redis, key_id: str, rate: int | None = None, per: int | None = None):
     """Raises `RateLimitedError` (`HTTPException`) if `key_id` is exceeding rate limits - 

@@ -4,11 +4,11 @@ from fastapi import APIRouter, Depends, Header, Query, Request, UploadFile, HTTP
 from fastapi.responses import FileResponse, JSONResponse
 from database import images
 import database
-import ratelimit
 from dependencies import get_db, get_redis
 from responses import RateLimitInfoResponse
 from services import image_service as service
 from services.auth_service import check_for_key
+from services.ratelimit_service import check_key_rate_limit
 import os
 
 router = APIRouter()
@@ -25,7 +25,7 @@ async def create_image(
     redis: redis.Redis = Depends(get_redis)
 ):
     user_key = await check_for_key(db, api_key)
-    remaining, expiration = await ratelimit.check_key_rate_limit(redis, user_key.key_id)
+    ratelimit = await check_key_rate_limit(redis, user_key.key_id)
     
     image = await service.validate_and_save_image(
         db, file, user_key, str(request.base_url), 
@@ -33,7 +33,7 @@ async def create_image(
     )
     
     return RateLimitInfoResponse(
-        image.model_dump(), remaining, expiration
+        image.model_dump(), ratelimit.remaining, ratelimit.expiration
     )
     
 @router.get("/images/{filename}")
