@@ -1,9 +1,13 @@
 from contextlib import asynccontextmanager
 import aiomysql
 from config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def create_pool() -> aiomysql.Pool:
     db = settings.db
+    logger.info("Creating database connection pool on host %s", db.host)
     return await aiomysql.create_pool(
         minsize=db.min_pool_size,
         maxsize=db.max_pool_size,
@@ -21,39 +25,47 @@ class Database:
     
     @asynccontextmanager
     async def transaction(self):
+        logger.debug("Database transaction started.")
         async with self.pool.acquire() as conn:
             try:
                 yield conn
                 await conn.commit()
+                logger.debug("Database transaction committed successfully.")
             except Exception:
+                logger.exception("Error occured, rolling back transaction.")
                 await conn.rollback()
                 raise
     
-    async def fetchall(self, query, args = ()) -> list[dict]:
+    async def fetchall(self, query: str, args = ()) -> list[dict]:
+        logger.debug("Fetching all with %s database query.", query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, args)
                 return await cur.fetchall()
             
-    async def fetchmany(self, size: int, query, args = ()) -> list[dict]:
+    async def fetchmany(self, size: int, query: str, args = ()) -> list[dict]:
+        logger.debug("Fetching %s rows with %s database query.", size, query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, args)
                 return await cur.fetchmany(size)
             
-    async def fetchone(self, query, args = ()) -> dict | None:
+    async def fetchone(self, query: str, args = ()) -> dict | None:
+        logger.debug("Fetching one with %s database query.", query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, args)
                 return await cur.fetchone()
             
-    async def execute(self, query, args = ()) -> None:
+    async def execute(self, query: str, args = ()) -> None:
+        logger.debug("Executing %s database query.", query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(query, args)
                 await conn.commit()
                 
     async def update_tables(self):
+        logger.info("Updating database tables.")
         async with self.transaction() as conn:
             async with conn.cursor() as cur:
                 # store API keys in binary instead of 64 character hex because it's more efficient
