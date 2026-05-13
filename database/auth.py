@@ -1,9 +1,14 @@
 import secrets
 import hashlib
+from enum import Enum
 from database import Database
 from config import settings
 from pydantic import BaseModel
 import hmac
+
+class KeyType(Enum):
+    live = "ak_live_"
+    dev = "ak_dev_"
 
 class UserApiKey(BaseModel):
     raw_key: str
@@ -22,10 +27,10 @@ class DatabaseApiKey(BaseModel):
     hashed_key: bytes
     key_id: str
 
-def create_api_key() -> UserApiKey:
+def create_api_key(key_type: KeyType) -> UserApiKey:
     raw_key = secrets.token_urlsafe(32)
     key_id = secrets.token_urlsafe(12)
-    return UserApiKey(raw_key=raw_key, key_id=key_id)
+    return UserApiKey(raw_key=raw_key, key_id=key_type.value + key_id)
 
 def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
     hashed_key = hmac.new(settings.api_secret.encode(), key.raw_key.encode(), hashlib.sha256).digest()
