@@ -6,6 +6,9 @@ from config import settings
 from pydantic import BaseModel
 import hmac
 from responses import ApiKeyMissingError, ApiKeyInvalidError
+import logging
+
+logger = logging.getLogger(__name__)
 
 class KeyType(Enum):
     live = "ak_live_"
@@ -47,6 +50,11 @@ async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> Non
             await cur.execute("""
                 INSERT INTO users (username, key_id) VALUES (%s, %s);
             """, (username, key.key_id))
+            
+    logger.info(
+        "New API key stored in database.", 
+        extra={"username": username, "key_id": key.key_id, "dev_key": key.key_id.startswith(KeyType.dev.value)}
+    )
     
 async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     """Validate that an API key exists in the database. Returns True if valid, else False."""
@@ -58,10 +66,17 @@ async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     api_key = result["api_key"]
     
     hashed_key = hmac.new(settings.api_secret.encode(), user_key.raw_key.encode(), hashlib.sha256).digest()
-    return hmac.compare_digest(hashed_key, api_key)
+    valid = hmac.compare_digest(hashed_key, api_key)
+    if valid:
+        logger.info("API key is VALID.", extra={"key_id": user_key.key_id})
+    else:
+        logger.warning("API key is INVALID.", extra={"key_id": user_key.key_id})
+    
+    return valid
 
 async def check_for_key(db: Database, api_key: str) -> UserApiKey:
     if not api_key:
+        logger.info("User is missing API key.")
         raise ApiKeyMissingError
     
     user_key = UserApiKey.from_full_key(api_key)
