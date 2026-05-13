@@ -38,13 +38,15 @@ def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
     return DatabaseApiKey(hashed_key=hashed_key, key_id=key.key_id)
 
 async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> None:
-    await db.execute("""
-        INSERT INTO auth (api_key, key_id) VALUES (%s, %s);
-    """, (key.hashed_key, key.key_id))
-    
-    await db.execute("""
-        INSERT INTO users (username, key_id) VALUES (%s, %s);
-    """, (username, key.key_id))
+    async with db.transaction() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("""
+                INSERT INTO auth (api_key, key_id) VALUES (%s, %s);
+            """, (key.hashed_key, key.key_id))
+            
+            await cur.execute("""
+                INSERT INTO users (username, key_id) VALUES (%s, %s);
+            """, (username, key.key_id))
     
 async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     """Validate that an API key exists in the database. Returns True if valid, else False."""
