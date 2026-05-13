@@ -1,6 +1,7 @@
 import secrets
 import hashlib
 from database import Database
+from config import settings
 from pydantic import BaseModel
 import hmac
 
@@ -18,8 +19,7 @@ class UserApiKey(BaseModel):
         return cls(key_id=key_id, raw_key=raw_key)
 
 class DatabaseApiKey(BaseModel):
-    salted_key: bytes
-    salt: bytes
+    hashed_key: bytes
     key_id: str
 
 def create_api_key() -> UserApiKey:
@@ -28,14 +28,13 @@ def create_api_key() -> UserApiKey:
     return UserApiKey(raw_key=raw_key, key_id=key_id)
 
 def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
-    salt = secrets.token_bytes(16)
-    hashed_key = hashlib.sha256(salt + key.raw_key.encode()).digest()
-    return DatabaseApiKey(salted_key=hashed_key, salt=salt, key_id=key.key_id)
+    hashed_key = hmac.new(settings.api_secret.encode(), key.raw_key.encode(), hashlib.sha256).digest()
+    return DatabaseApiKey(hashed_key=hashed_key, key_id=key.key_id)
 
 async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> None:
     await db.execute("""
-        INSERT INTO auth (api_key, key_id, salt) VALUES (%s, %s, %s);
-    """, (key.salted_key, key.key_id, key.salt))
+        INSERT INTO auth (api_key, key_id) VALUES (%s, %s);
+    """, (key.hashed_key, key.key_id))
     
     await db.execute("""
         INSERT INTO users (username, key_id) VALUES (%s, %s);
@@ -44,12 +43,11 @@ async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> Non
 async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     """Validate that an API key exists in the database. Returns True if valid, else False."""
     user_key = key if isinstance(key, UserApiKey) else UserApiKey.from_full_key(key)
-    result = await db.fetchone("SELECT api_key, salt FROM auth WHERE key_id = %s", (user_key.key_id,))
+    result = await db.fetchone("SELECT api_key FROM auth WHERE key_id = %s", (user_key.key_id,))
     if not result:
         return False
     
-    salted_key = result["api_key"]
-    salt = result["salt"]
+    api_key = result["api_key"]
     
-    hashed_key = hashlib.sha256(salt + user_key.raw_key.encode()).digest()
-    return hmac.compare_digest(hashed_key, salted_key)
+    hashed_key = hmac.new(settings.api_secret.encode(), user_key.raw_key.encode(), hashlib.sha256).digest()
+    return hmac.compare_digest(hashed_key, api_key)

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     db: DBSettings
     redis: RedisSettings
     
+    api_secret: str = Field(alias="apisecret")
     rate_limit: int = Field(alias="ratelimit")
     per_seconds: int = Field(alias="perseconds")
     image_directory: str = Field(alias="imagedirectory")

@@ -48,7 +48,6 @@ class Database:
             CREATE TABLE IF NOT EXISTS auth (
                 api_key BINARY(32) PRIMARY KEY,
                 key_id CHAR(16) NOT NULL UNIQUE,
-                salt BINARY(16) NOT NULL,
                 created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
