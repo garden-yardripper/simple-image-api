@@ -3,11 +3,11 @@ import redis.asyncio as redis
 from fastapi import APIRouter, Depends, Header, Query, Request, UploadFile, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from database import images
+from database.auth import UserApiKey, check_for_key
 import database
 from dependencies import get_db, get_redis
 from responses import RateLimitInfoResponse
 from services import image_service as service
-from services.auth_service import check_for_key, UserApiKey
 from services.ratelimit_service import check_key_rate_limit, RateLimit
 import os
 

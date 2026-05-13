@@ -5,6 +5,7 @@ from database import Database
 from config import settings
 from pydantic import BaseModel
 import hmac
+from responses import ApiKeyMissingError, ApiKeyInvalidError
 
 class KeyType(Enum):
     live = "ak_live_"
@@ -56,3 +57,12 @@ async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     
     hashed_key = hmac.new(settings.api_secret.encode(), user_key.raw_key.encode(), hashlib.sha256).digest()
     return hmac.compare_digest(hashed_key, api_key)
+
+async def check_for_key(db: Database, api_key: str) -> UserApiKey:
+    if not api_key:
+        raise ApiKeyMissingError
+    
+    user_key = UserApiKey.from_full_key(api_key)
+    if not await validate_key(db, user_key):
+        raise ApiKeyInvalidError
+    return user_key
