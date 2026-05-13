@@ -44,7 +44,10 @@ async def validate_and_save_image(
     
     acceptable_extensions = {"png", "jpg", "jpeg", "gif", "webp", "avif"}
     if extension not in acceptable_extensions:
-        logger.info("Uploaded file has unsupported extension.", extra={"key_id": user_key.key_id, "extension": extension})
+        logger.info(
+            "Uploaded file has unsupported extension.", 
+            extra={"key_id": user_key.key_id, "extension": extension}
+        )
         raise HTTPException(415, {"message": "Image type unsupported."})
 
     # validate file size is less than 10MiB
