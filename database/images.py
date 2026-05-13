@@ -3,6 +3,9 @@ from .database import Database
 from urllib.parse import urljoin
 from datetime import datetime
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Image(BaseModel):
     image_id: str
@@ -73,11 +76,14 @@ async def store_image_metadata(
         description=description,
         private=private
     )
+    logger.debug("Image metadata stored to database.", image.model_dump())
             
     return image
 
 async def get_image_data_from_id(db: Database, image_id: str) -> Image | None:
     result = await db.fetchone("SELECT * FROM images WHERE image_id = %s", (image_id,))
     if not result:
+        logger.debug("No image found in database with specified image ID.", extra={"image_id": image_id})
         return None
+    logger.debug("Returning found image metadata.", extra=result)
     return Image.model_validate(result)
