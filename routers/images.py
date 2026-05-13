@@ -10,8 +10,10 @@ from responses import RateLimitInfoResponse
 from services import image_service as service
 from services.ratelimit_service import check_key_rate_limit, RateLimit
 import os
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/images")
 async def create_image(
@@ -26,13 +28,16 @@ async def create_image(
     user_key: Annotated[UserApiKey, Depends(check_for_key)],
     ratelimit: Annotated[RateLimit, Depends(check_key_rate_limit)]
 ):
+    logger.debug("Received request to upload image.", extra={"key_id": user_key.key_id, "filename": file.filename})
     image = await service.validate_and_save_image(
         db, file, user_key, str(request.base_url), 
         title, description, private
     )
     
+    image_data = image.model_dump()
+    logger.debug("Returning uploaded image metadata.", extra=image_data)
     return RateLimitInfoResponse(
-        image.model_dump(), ratelimit.remaining, ratelimit.expiration
+        image_data, ratelimit.remaining, ratelimit.expiration
     )
     
 @router.get("/images/{filename}")
@@ -44,13 +49,18 @@ async def get_image_id(
     user_key: Annotated[UserApiKey, Depends(check_for_key)],
     ratelimit: Annotated[RateLimit, Depends(check_key_rate_limit)]
 ):
+    logger.debug("Received request to retrieve image.", extra={"key_id": user_key.key_id, "filename": filename})
     image_id, extension = os.path.splitext(filename)
     
     image = await images.get_image_data_from_id(db, image_id)
     if image is None:
+        logger.debug("No image found with specified ID.", extra={"image_id": image_id})
         raise HTTPException(404, {"message": "Image not found"})
     
     if extension:
+        logger.debug("Returning image file.", extra={"image_id": image_id, "file_path": image.file_path})
         return FileResponse(image.file_path, media_type=image.mime_type, filename=image.file_name)
     
-    return JSONResponse(image.model_dump())
+    image_data = image.model_dump()
+    logger.debug("Returning image metadata.", extra=image_data)
+    return JSONResponse(image_data)
