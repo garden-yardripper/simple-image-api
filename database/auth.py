@@ -6,16 +6,15 @@ import hmac
 
 class UserApiKey(BaseModel):
     raw_key: str
-    key_id: str # 16 characters
+    key_id: str
     
     @property
     def full_key(self) -> str:
-        return self.key_id + self.raw_key
+        return self.key_id + "." + self.raw_key
     
     @classmethod
     def from_full_key(cls, full_key: str) -> "UserApiKey":
-        key_id = full_key[:16]
-        raw_key = full_key[16:]
+        key_id, raw_key = full_key.split(".", 1)
         return cls(key_id=key_id, raw_key=raw_key)
 
 class DatabaseApiKey(BaseModel):
@@ -36,8 +35,11 @@ def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
 async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> None:
     await db.execute("""
         INSERT INTO auth (api_key, key_id, salt) VALUES (%s, %s, %s);
+    """, (key.salted_key, key.key_id, key.salt))
+    
+    await db.execute("""
         INSERT INTO users (username, key_id) VALUES (%s, %s);
-    """, (key.salted_key, key.key_id, key.salt, username, key.key_id))
+    """, (username, key.key_id))
     
 async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     """Validate that an API key exists in the database. Returns True if valid, else False."""
