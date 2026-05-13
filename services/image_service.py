@@ -10,6 +10,9 @@ from config import settings
 from database import images
 from database.auth import UserApiKey
 from database.database import Database
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def is_valid_image(file: bytes) -> bool:
     def _run():
@@ -28,10 +31,12 @@ async def validate_and_save_image(
     title: str, description: str, private: bool
 ) -> images.UploadedImage:
     if not file.filename:
+        logger.info("Uploaded file missing filename.", extra={"key_id": user_key.key_id})
         raise HTTPException(400, {"message": "Uploaded image must have a filename."})
     
     filename, extension = os.path.splitext(file.filename)
     if not extension:
+        logger.info("Uploaded file missing extension.", extra={"key_id": user_key.key_id})
         raise HTTPException(400, {"message": "Uploaded file must have a valid extension."})
     
     extension = extension.lstrip(".").lower()
@@ -39,6 +44,7 @@ async def validate_and_save_image(
     
     acceptable_extensions = {"png", "jpg", "jpeg", "gif", "webp", "avif"}
     if extension not in acceptable_extensions:
+        logger.info("Uploaded file has unsupported extension.", extra={"key_id": user_key.key_id, "extension": extension})
         raise HTTPException(415, {"message": "Image type unsupported."})
 
     # validate file size is less than 10MiB
@@ -46,6 +52,7 @@ async def validate_and_save_image(
     bytes_read = 0
     while True:
         if bytes_read > max_size:
+            logger.info("Image file size exceeds 10MB limit.", extra={"key_id": user_key.key_id})
             raise HTTPException(413, {"message": "Image file size exceeds 10MB limit."})
         
         contents = await file.read(1024 ** 2)
@@ -58,11 +65,13 @@ async def validate_and_save_image(
     await file.seek(0)
     file_bytes = await file.read()
     if not await is_valid_image(file_bytes):
+        logger.info("Uploaded file is not a valid image or is malformed.", extra={"key_id": user_key.key_id})
         raise HTTPException(400, {"message": "Uploaded file is not a valid image or is malformed."})
     
     image_id = str(uuid.uuid4())
     path = os.path.join(settings.image_directory, f"{image_id}.{extension}")
     
+    logger.info("Saving image file.", extra={"key_id": user_key.key_id, "image_id": image_id})
     async with aiofiles.open(path, "wb") as f:
         await f.write(file_bytes)
         
@@ -70,4 +79,5 @@ async def validate_and_save_image(
         db, image_id, user_key.key_id, str(base_url), extension,
         path, filename, bytes_read, mimetype, title, description, private
     )
+    logger.info("Image metadata stored.", extra={"key_id": user_key.key_id, "image_id": image_id})
     return image
