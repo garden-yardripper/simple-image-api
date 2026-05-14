@@ -1,11 +1,10 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, UploadFile, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from redis.asyncio import Redis
 from database import images
 from database.auth import UserApiKey, check_for_key
 from database.database import Database
-from dependencies import get_db, get_redis
+from dependencies import get_db
 from responses import RateLimitInfoResponse
 from services import image_service as service
 from services.ratelimit_service import check_key_rate_limit, RateLimit
@@ -22,12 +21,14 @@ async def create_image(
     title: Annotated[str, Query(min_length=1, max_length=255)], 
     description: Annotated[str, Query(min_length=0, max_length=1000)], 
     db: Annotated[Database, Depends(get_db)],
-    redis: Annotated[Redis, Depends(get_redis)],
     user_key: Annotated[UserApiKey, Depends(check_for_key)],
     ratelimit: Annotated[RateLimit, Depends(check_key_rate_limit)],
     private: Annotated[bool, Query()] = False
 ):
-    logger.debug("Received request to upload image.", extra={"key_id": user_key.key_id, "filename": file.filename})
+    logger.debug(
+        "Received request to upload image.", 
+        extra={"key_id": user_key.key_id, "image_filename": file.filename}
+    )
     image = await service.validate_and_save_image(
         db, file, user_key, str(request.base_url), 
         title, description, private
@@ -43,11 +44,13 @@ async def create_image(
 async def get_image_id(
     filename: str, 
     db: Annotated[Database, Depends(get_db)],
-    redis: Annotated[Redis, Depends(get_redis)],
     user_key: Annotated[UserApiKey, Depends(check_for_key)],
     ratelimit: Annotated[RateLimit, Depends(check_key_rate_limit)],
 ):
-    logger.debug("Received request to retrieve image.", extra={"key_id": user_key.key_id, "filename": filename})
+    logger.debug(
+        "Received request to retrieve image.", 
+        extra={"key_id": user_key.key_id, "image_filename": filename}
+    )
     image_id, extension = os.path.splitext(filename)
     
     image = await images.get_image_data_from_id(db, image_id)
