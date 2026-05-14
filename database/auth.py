@@ -7,6 +7,9 @@ from pydantic import BaseModel
 import hmac
 from responses import ApiKeyMissingError, ApiKeyInvalidError
 import logging
+from fastapi import Depends, Header
+from typing import Annotated
+from dependencies import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +59,12 @@ async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> Non
         extra={"username": username, "key_id": key.key_id, "dev_key": key.key_id.startswith(KeyType.dev.value)}
     )
     
+async def create_and_store_key(db: Database, username: str, key_type: KeyType) -> UserApiKey:
+    user_key = create_api_key(key_type)
+    database_key = hash_api_key(user_key)
+    await store_api_key(db, database_key, username)
+    return user_key
+    
 async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     """Validate that an API key exists in the database. Returns True if valid, else False."""
     user_key = key if isinstance(key, UserApiKey) else UserApiKey.from_full_key(key)
@@ -74,7 +83,10 @@ async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     
     return valid
 
-async def check_for_key(db: Database, api_key: str) -> UserApiKey:
+async def check_for_key(
+    db: Annotated[Database, Depends(get_db)],
+    api_key: Annotated[str | None, Header(alias="api-key")] = None
+) -> UserApiKey:
     if not api_key:
         logger.info("User is missing API key.")
         raise ApiKeyMissingError
