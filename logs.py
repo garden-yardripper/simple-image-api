@@ -1,5 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
+from pythonjsonlogger.json import JsonFormatter
+import os
 
 def setup_logging():
     logger = logging.getLogger()
@@ -13,7 +15,6 @@ def setup_logging():
         "%(asctime)s | %(levelname)s | %(name)s:%(lineno)d | %(message)s"
     )
     
-    import os
     logs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
     os.makedirs(logs_path, exist_ok=True)
     
@@ -26,6 +27,21 @@ def setup_logging():
     )
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.DEBUG)
+    
+    # json
+    json_formatter = JsonFormatter(
+        fmt="%(asctime)s | %(levelname)s | %(name)s:%(lineno)d | %(message)s",
+        json_indent=4
+    )
+    json_file_handler = RotatingFileHandler(
+        os.path.join(logs_path, "apilogs.json.log"),
+        maxBytes=5_000_000,
+        backupCount=3,
+        encoding="utf-8"
+    )
+    json_file_handler.setFormatter(json_formatter)
+    json_file_handler.setLevel(logging.DEBUG)
+    logger.addHandler(json_file_handler)
     
     # console
     console_handler = logging.StreamHandler()
