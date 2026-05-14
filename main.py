@@ -5,6 +5,7 @@ import redis.asyncio as redis
 from redis.exceptions import RedisError
 from logs import setup_logging
 from config import settings
+import routers
 import logging
 import database
 import os
@@ -59,3 +60,5 @@ async def lifespan(app: FastAPI):
     logger.info("Redis connection pool closed successfully.")
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(routers.auth.router)
+app.include_router(routers.images.router)
