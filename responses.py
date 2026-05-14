@@ -42,6 +42,10 @@ class RateLimitInfoResponse(JSONResponse):
         media_type: str | None = None, 
         background: BackgroundTask | None = None
     ) -> None:
-        content["ratelimit-remaining"] = ratelimit_remaining
-        content["ratelimit-reset"] = ratelimit_reset
+        if not headers:
+            headers = {}
+        else:
+            headers = dict(headers)
+        headers["ratelimit-remaining"] = str(ratelimit_remaining)
+        headers["ratelimit-reset"] = str(ratelimit_reset)
         super().__init__(content, status_code, headers, media_type, background)
