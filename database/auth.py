@@ -27,7 +27,11 @@ class UserApiKey(BaseModel):
     
     @classmethod
     def from_full_key(cls, full_key: str) -> "UserApiKey":
-        key_id, raw_key = full_key.split(".", 1)
+        try:
+            key_id, raw_key = full_key.split(".", 1)
+        except ValueError:
+            logger.exception("Cannot split full key into key_id and raw_key.")
+            raise ApiKeyInvalidError
         return cls(key_id=key_id, raw_key=raw_key)
 
 class DatabaseApiKey(BaseModel):

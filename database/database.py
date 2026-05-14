@@ -91,7 +91,7 @@ class Database:
                     CREATE TABLE IF NOT EXISTS images (
                         -- identification
                         image_id UUID PRIMARY KEY,
-                        key_id CHAR(16),
+                        key_id VARCHAR(32) NOT NULL UNIQUE,
 
                         -- file info
                         file_path VARCHAR(255),
