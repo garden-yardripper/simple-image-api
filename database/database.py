@@ -72,6 +72,7 @@ class Database:
                 await cur.execute("""
                     CREATE TABLE IF NOT EXISTS auth (
                         api_key BINARY(32) PRIMARY KEY,
+                        salt BINARY(16),
                         key_id VARCHAR(32) NOT NULL UNIQUE,
                         created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )

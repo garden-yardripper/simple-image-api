@@ -2,7 +2,6 @@ import secrets
 import hashlib
 from enum import Enum
 from database import Database
-from config import settings
 from pydantic import BaseModel
 import hmac
 from responses import ApiKeyMissingError, ApiKeyInvalidError
@@ -36,6 +35,7 @@ class UserApiKey(BaseModel):
 
 class DatabaseApiKey(BaseModel):
     hashed_key: bytes
+    salt: bytes
     key_id: str
 
 def create_api_key(key_type: KeyType) -> UserApiKey:
@@ -44,15 +44,16 @@ def create_api_key(key_type: KeyType) -> UserApiKey:
     return UserApiKey(raw_key=raw_key, key_id=key_type.value + key_id)
 
 def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
-    hashed_key = hmac.new(settings.api_secret.encode(), key.raw_key.encode(), hashlib.sha256).digest()
-    return DatabaseApiKey(hashed_key=hashed_key, key_id=key.key_id)
+    salt = secrets.token_bytes(16)
+    hashed_key = hashlib.sha256(salt + key.raw_key.encode()).digest()
+    return DatabaseApiKey(hashed_key=hashed_key, salt=salt, key_id=key.key_id)
 
 async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> None:
     async with db.transaction() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
-                INSERT INTO auth (api_key, key_id) VALUES (%s, %s);
-            """, (key.hashed_key, key.key_id))
+                INSERT INTO auth (api_key, salt, key_id) VALUES (%s, %s, %s);
+            """, (key.hashed_key, key.salt, key.key_id))
             
             await cur.execute("""
                 INSERT INTO users (username, key_id) VALUES (%s, %s);
@@ -77,8 +78,9 @@ async def validate_key(db: Database, key: str | UserApiKey) -> bool:
         return False
     
     api_key = result["api_key"]
+    salt = result["salt"]
     
-    hashed_key = hmac.new(settings.api_secret.encode(), user_key.raw_key.encode(), hashlib.sha256).digest()
+    hashed_key = hashlib.sha256(salt + user_key.raw_key.encode()).digest()
     valid = hmac.compare_digest(hashed_key, api_key)
     if valid:
         logger.info("API key is VALID.", extra={"key_id": user_key.key_id})
