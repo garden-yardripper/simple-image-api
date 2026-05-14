@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     rate_limit: int = Field(alias="ratelimit")
     per_seconds: int = Field(alias="perseconds")
     image_directory: str = Field(alias="imagedirectory")
+    log_directory: str = Field(alias="logdirectory")
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="_",

@@ -1,6 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 from pythonjsonlogger.json import JsonFormatter
+from config import settings
 import os
 
 def setup_logging():
@@ -15,12 +16,11 @@ def setup_logging():
         "%(asctime)s | %(levelname)s | %(name)s:%(lineno)d | %(message)s"
     )
     
-    logs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-    os.makedirs(logs_path, exist_ok=True)
+    os.makedirs(settings.log_directory, exist_ok=True)
     
     # rotating file
     file_handler = RotatingFileHandler(
-        os.path.join(logs_path, "apilogs.log"),
+        os.path.join(settings.log_directory, "apilogs.log"),
         maxBytes=5_000_000,
         backupCount=3,
         encoding="utf-8"
@@ -34,7 +34,7 @@ def setup_logging():
         json_indent=4
     )
     json_file_handler = RotatingFileHandler(
-        os.path.join(logs_path, "apilogs.json.log"),
+        os.path.join(settings.log_directory, "apilogs.json.log"),
         maxBytes=5_000_000,
         backupCount=3,
         encoding="utf-8"
