@@ -6,9 +6,11 @@ from pydantic import BaseModel
 import hmac
 from responses import ApiKeyMissingError, ApiKeyInvalidError
 import logging
-from fastapi import Depends, Header
+from fastapi import Depends, HTTPException, Header
 from typing import Annotated
 from dependencies import get_db
+import aiomysql
+import string
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +51,36 @@ def hash_api_key(key: UserApiKey) -> DatabaseApiKey:
     return DatabaseApiKey(hashed_key=hashed_key, salt=salt, key_id=key.key_id)
 
 async def store_api_key(db: Database, key: DatabaseApiKey, username: str) -> None:
+    if len(username) > 20:
+        logger.warning(
+            "Username is longer than 20 characters.",
+            extra={"username": username, "key_id": key.key_id}
+        )
+    
+    allowed_chars = string.ascii_letters + string.digits
+    if any(char not in allowed_chars for char in username):
+        logger.warning(
+            "Username contains unsupported characters.",
+            extra={"username": username, "key_id": key.key_id}
+        )
+        raise HTTPException(400, {"message": "Username contains unsupported characters."})
+    
     async with db.transaction() as conn:
         async with conn.cursor() as cur:
             await cur.execute("""
                 INSERT INTO auth (api_key, salt, key_id) VALUES (%s, %s, %s);
             """, (key.hashed_key, key.salt, key.key_id))
             
-            await cur.execute("""
-                INSERT INTO users (username, key_id) VALUES (%s, %s);
-            """, (username, key.key_id))
+            try:
+                await cur.execute("""
+                    INSERT INTO users (username, key_id) VALUES (%s, %s);
+                """, (username, key.key_id))
+            except aiomysql.IntegrityError:
+                logger.warning(
+                    "Username already exists, API key insertion failed.",
+                    extra={"username": username, "key_id": key.key_id}
+                )
+                raise HTTPException(400, {"message": "Username already exists."})
             
     logger.info(
         "New API key stored in database.", 

@@ -80,7 +80,7 @@ class Database:
                 
                 await cur.execute("""
                     CREATE TABLE IF NOT EXISTS users (
-                        username VARCHAR(20),
+                        username VARCHAR(20) UNIQUE,
                         key_id VARCHAR(32) NOT NULL,
                         FOREIGN KEY (key_id) 
                             REFERENCES auth(key_id) 
