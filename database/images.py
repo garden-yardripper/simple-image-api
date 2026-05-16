@@ -18,16 +18,16 @@ class Image(BaseModel):
     description: str | None
     private: bool
     uploaded: datetime
-    last_updated: datetime
+    updated: datetime
     
     @classmethod
-    @field_validator("uploaded", "last_updated", mode="before")
+    @field_validator("uploaded", "updated", mode="before")
     def convert_timestamp_to_datetime(cls, value):
         if isinstance(value, float) or isinstance(value, int):
             return datetime.fromtimestamp(value)
         return value
     
-    @field_serializer("uploaded", "last_updated")
+    @field_serializer("uploaded", "updated")
     def serialize_datetime_to_timestamp(self, time: datetime) -> float:
         return time.timestamp()
     
