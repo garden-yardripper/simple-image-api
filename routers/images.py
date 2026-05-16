@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, UploadFile, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from database.images import Image
 from database.auth import UserApiKey, check_for_key
 from database.database import Database
@@ -8,6 +9,7 @@ from dependencies import get_db
 from responses import RateLimitInfoResponse
 from services import image_service as service
 from services.ratelimit_service import check_key_rate_limit, RateLimit
+from services.search_service import search
 import os
 import logging
 
@@ -39,7 +41,48 @@ async def create_image(
     return RateLimitInfoResponse(
         image_data, ratelimit.remaining, ratelimit.expiration
     )
+
+@router.get("/images/explore")
+async def explore_images(
+    db: Annotated[Database, Depends(get_db)],
+    use_and: Annotated[bool, Query()] = False,
+    image_id: Annotated[str | None, Query()] = None,
+    title: Annotated[str | None, Query()] = None,
+    description: Annotated[str | None, Query()] = None,
+    username: Annotated[str | None, Query()] = None,
+    file_name: Annotated[str | None, Query()] = None,
+    mime_type: Annotated[str | None, Query()] = None,
+    uploaded_before: Annotated[datetime | None, Query()] = None,
+    uploaded_after: Annotated[datetime | None, Query()] = None,
+    updated_before: Annotated[datetime | None, Query()] = None,
+    updated_after: Annotated[datetime | None, Query()] = None,
+    file_size_greater: Annotated[int | None, Query()] = None,
+    file_size_less: Annotated[int | None, Query()] = None
+):
+    results = await search(
+        db, use_and,
+        image_id=image_id,
+        title=title,
+        description=description,
+        username=username,
+        file_name=file_name,
+        mime_type=mime_type,
+        uploaded_before=uploaded_before,
+        uploaded_after=uploaded_after,
+        updated_before=updated_before,
+        updated_after=updated_after,
+        file_size_greater=file_size_greater,
+        file_size_less=file_size_less
+    )
+    image_list: list[Image] = []
     
+    for result in results:
+        image = Image.model_validate(result)
+        image_list.append(image)
+
+    logger.debug("Returning search results.", extra={"result_count": len(image_list)})
+    return image_list
+
 @router.get("/images/{filename}")
 async def get_image_id(
     filename: str, 
@@ -53,7 +96,7 @@ async def get_image_id(
     )
     image_id, extension = os.path.splitext(filename)
     
-    image = await Image.get_image_data_from_id(db, image_id)
+    image = await Image.from_id(db, image_id)
     if image is None:
         logger.debug("No image found with specified ID.", extra={"image_id": image_id})
         raise HTTPException(404, {"message": "Image not found"})
@@ -64,4 +107,4 @@ async def get_image_id(
     
     image_data = image.model_dump()
     logger.debug("Returning image metadata.", extra=image_data)
-    return JSONResponse(image_data)
+    return RateLimitInfoResponse(image_data, ratelimit.remaining, ratelimit.expiration)

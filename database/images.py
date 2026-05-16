@@ -45,7 +45,7 @@ class Image(BaseModel):
             raise ValueError(f"No image found in database with specified image ID: {image_id}")
         
         logger.debug("Returning found image metadata.", extra=result)
-        return Image.model_validate(result)
+        return cls.model_validate(result)
 
 class UploadedImage(BaseModel):
     image_id: str
