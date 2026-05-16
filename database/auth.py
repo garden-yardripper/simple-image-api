@@ -101,3 +101,11 @@ async def check_for_key(
     if not await validate_key(db, user_key):
         raise ApiKeyInvalidError
     return user_key
+
+async def get_key_id_from_username(db: Database, username: str) -> str | None:
+    result = await db.fetchone("SELECT key_id FROM users WHERE username = %s", (username,))
+    return result["key_id"] if result else None
+
+async def get_username_from_key_id(db: Database, key_id: str) -> str | None:
+    result = await db.fetchone("SELECT username FROM users WHERE key_id = %s", (key_id,))
+    return result["username"] if result else None
