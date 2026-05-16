@@ -35,6 +35,17 @@ class Image(BaseModel):
         if exclude is None:
             exclude = {"key_id", "file_path", "file_size"}
         return super().model_dump(include=include, exclude=exclude, **kwargs)
+    
+    @classmethod
+    async def from_id(cls, db: Database, image_id: str) -> "Image":
+        """Return an `Image` object with the specified image_id. Raises `ValueError` if no image is found."""
+        result = await db.fetchone("SELECT * FROM images WHERE image_id = %s", (image_id,))
+        if not result:
+            logger.debug("No image found in database with specified image ID.", extra={"image_id": image_id})
+            raise ValueError(f"No image found in database with specified image ID: {image_id}")
+        
+        logger.debug("Returning found image metadata.", extra=result)
+        return Image.model_validate(result)
 
 class UploadedImage(BaseModel):
     image_id: str
@@ -79,11 +90,3 @@ async def store_image_metadata(
     logger.debug("Image metadata stored to database.", image.model_dump())
             
     return image
-
-async def get_image_data_from_id(db: Database, image_id: str) -> Image | None:
-    result = await db.fetchone("SELECT * FROM images WHERE image_id = %s", (image_id,))
-    if not result:
-        logger.debug("No image found in database with specified image ID.", extra={"image_id": image_id})
-        return None
-    logger.debug("Returning found image metadata.", extra=result)
-    return Image.model_validate(result)

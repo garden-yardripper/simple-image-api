@@ -1,7 +1,7 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, UploadFile, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from database import images
+from database.images import Image
 from database.auth import UserApiKey, check_for_key
 from database.database import Database
 from dependencies import get_db
@@ -53,7 +53,7 @@ async def get_image_id(
     )
     image_id, extension = os.path.splitext(filename)
     
-    image = await images.get_image_data_from_id(db, image_id)
+    image = await Image.get_image_data_from_id(db, image_id)
     if image is None:
         logger.debug("No image found with specified ID.", extra={"image_id": image_id})
         raise HTTPException(404, {"message": "Image not found"})
