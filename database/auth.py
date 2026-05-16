@@ -96,7 +96,8 @@ async def create_and_store_key(db: Database, username: str, key_type: KeyType) -
 async def validate_key(db: Database, key: str | UserApiKey) -> bool:
     """Validate that an API key exists in the database. Returns True if valid, else False."""
     user_key = key if isinstance(key, UserApiKey) else UserApiKey.from_full_key(key)
-    result = await db.fetchone("SELECT api_key, salt FROM auth WHERE key_id = %s", (user_key.key_id,))
+    query_result = await db.fetchone("SELECT api_key, salt FROM auth WHERE key_id = %s", (user_key.key_id,))
+    result = query_result.result
     if not result:
         return False
     
@@ -126,9 +127,9 @@ async def check_for_key(
     return user_key
 
 async def get_key_id_from_username(db: Database, username: str) -> str | None:
-    result = await db.fetchone("SELECT key_id FROM users WHERE username = %s", (username,))
-    return result["key_id"] if result else None
+    query_result = await db.fetchone("SELECT key_id FROM users WHERE username = %s", (username,))
+    return query_result.result["key_id"] if query_result.result else None
 
 async def get_username_from_key_id(db: Database, key_id: str) -> str | None:
-    result = await db.fetchone("SELECT username FROM users WHERE key_id = %s", (key_id,))
-    return result["username"] if result else None
+    query_result = await db.fetchone("SELECT username FROM users WHERE key_id = %s", (key_id,))
+    return query_result.result["username"] if query_result.result else None

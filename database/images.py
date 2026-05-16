@@ -39,7 +39,8 @@ class Image(BaseModel):
     @classmethod
     async def from_id(cls, db: Database, image_id: str) -> "Image":
         """Return an `Image` object with the specified image_id. Raises `ValueError` if no image is found."""
-        result = await db.fetchone("SELECT * FROM images WHERE image_id = %s", (image_id,))
+        query_result = await db.fetchone("SELECT * FROM images WHERE image_id = %s", (image_id,))
+        result = query_result.result
         if not result:
             logger.debug("No image found in database with specified image ID.", extra={"image_id": image_id})
             raise ValueError(f"No image found in database with specified image ID: {image_id}")

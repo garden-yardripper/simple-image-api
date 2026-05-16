@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import aiomysql
+from pydantic import BaseModel
 from config import settings
 import logging
 
@@ -18,7 +19,12 @@ async def create_pool() -> aiomysql.Pool:
         db=db.name,
         autocommit=False
     )
-    
+
+class QueryResult[T: (dict, list[dict], None)](BaseModel):
+    rowcount: int
+    lastrowid: int | None
+    result: T
+
 class Database:
     def __init__(self, pool: aiomysql.Pool) -> None:
         self.pool = pool
@@ -36,33 +42,37 @@ class Database:
                 await conn.rollback()
                 raise
     
-    async def fetchall(self, query: str, args = ()) -> list[dict]:
+    async def fetchall(self, query: str, args = ()) -> QueryResult[list[dict]]:
         logger.debug("Fetching all with %s database query.", query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, args)
-                return await cur.fetchall()
+                rows = await cur.fetchall()
+                return QueryResult(rowcount=cur.rowcount, lastrowid=cur.lastrowid, result=rows)
             
-    async def fetchmany(self, size: int, query: str, args = ()) -> list[dict]:
+    async def fetchmany(self, size: int, query: str, args = ()) -> QueryResult[list[dict]]:
         logger.debug("Fetching %s rows with %s database query.", size, query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, args)
-                return await cur.fetchmany(size)
+                rows = await cur.fetchmany(size)
+                return QueryResult(rowcount=cur.rowcount, lastrowid=cur.lastrowid, result=rows)
             
-    async def fetchone(self, query: str, args = ()) -> dict | None:
+    async def fetchone(self, query: str, args = ()) -> QueryResult[dict]:
         logger.debug("Fetching one with %s database query.", query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cur:
                 await cur.execute(query, args)
-                return await cur.fetchone()
+                row = await cur.fetchone()
+                return QueryResult(rowcount=cur.rowcount, lastrowid=cur.lastrowid, result=row)
             
-    async def execute(self, query: str, args = ()) -> None:
+    async def execute(self, query: str, args = ()) -> QueryResult[None]:
         logger.debug("Executing %s database query.", query.split()[0])
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(query, args)
                 await conn.commit()
+                return QueryResult(rowcount=cur.rowcount, lastrowid=cur.lastrowid, result=None)
                 
     async def update_tables(self):
         logger.info("Updating database tables.")
