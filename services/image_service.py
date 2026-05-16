@@ -71,7 +71,11 @@ async def validate_and_save_image(
         logger.info("Uploaded file is not a valid image or is malformed.", extra={"key_id": user_key.key_id})
         raise HTTPException(400, {"message": "Uploaded file is not a valid image or is malformed."})
     
-    image_id = str(uuid.uuid7())
+    try:
+        image_id = str(uuid.uuid7())
+    except AttributeError:
+        import uuid_utils
+        image_id = str(uuid_utils.uuid7())
     path = os.path.join(settings.image_directory, f"{image_id}.{extension}")
     
     logger.info("Saving image file.", extra={"key_id": user_key.key_id, "image_id": image_id})
